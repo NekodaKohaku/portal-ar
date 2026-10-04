@@ -1,5 +1,8 @@
 # Portal / 現實傳送門
 
+正式網站：https://nekodakohaku.github.io/portal-ar/  
+GitHub：https://github.com/NekodaKohaku/portal-ar
+
 純靜態網頁，可由 GitHub Pages 託管。選圖片、設定五行資訊與大小，按相機模式，再按 **Drop portal**。圖片只在裝置記憶體中處理，不上傳；重新整理會清除設定。
 
 五行依序為世界名稱、創建者、伺服器編號與類型、目前／上限人數、30 秒倒數。這些資訊是手動設定，不向 VRChat 查詢。支援 Windows / Android / iOS 圖示選擇。Drop 前顯示虛線橢圓、中央圖示、地面圓環與指引軌跡；Drop 後顯示世界圖片、粒子和五行資訊，30 秒後播放關閉效果，接著可重新放置。
@@ -82,7 +85,8 @@ Three.js 0.160.1、AR.js 3.4.7，以及 AR.js 的 Hiro pattern / image / camera 
 - 30 秒倒數結束後關閉、重新 Drop 已在桌面 Chrome 驗證；錄影產出可解碼的 838 × 872 影片（測試片段約 52 秒），拍照產出 PNG 預覽。
 - 手機版畫面可用響應式布局；相機拒絕／無相機／AR 不支援等狀態有處理。
 - 瀏覽器自動上傳測試被 Chrome 擴充功能的檔案 URL 存取設定擋住，未修改設定。
-- **尚未完成 iPhone / Android 實機相機與空間定位驗證，也尚未上線 GitHub Pages。**
+- 已上線 GitHub Pages，Actions 部署成功；正式 HTTPS 網站可載入。
+- **尚未完成 iPhone / Android 實機相機與空間定位驗證。**
 
 ## 清理
 
