@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import {createEmitters,updateEmitters} from './effects.js';
+import {createEmitters,updateEmitters} from './effects.js?v=20261004-touch';
 import {vertexShader,fragmentShader} from './portal-shader.js';
 import {portalFrame} from './lifecycle.js';
 import {installGestures} from './gestures.js';
@@ -351,5 +351,6 @@ function showMedia(blob,type) {
   $('media-note').textContent=video?'錄影不含聲音。下載後可在裝置上開啟，或分享並儲存到相簿。':'照片包含相機畫面與傳送門，不包含操作按鈕。';
   $('media-share').hidden=!(navigator.canShare?.({files:[savedMedia]}));if(!$('media-dialog').open)$('media-dialog').showModal();
 }
+
 
 
