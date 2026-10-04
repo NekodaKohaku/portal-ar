@@ -2,10 +2,12 @@ import * as THREE from './vendor/three.module.js';
 import {createEmitters,updateEmitters} from './effects.js?v=20261004-touch';
 import {vertexShader,fragmentShader} from './portal-shader.js';
 import {portalFrame} from './lifecycle.js';
+import {initLanguages,setText,t} from './i18n.js?v=20261004-language';
 import {installGestures} from './gestures.js';
 const $ = id => document.getElementById(id);
-const status = message => { $('status').textContent = message; };
-const arStatus = message => { $('ar-status').textContent = message; };
+initLanguages();
+const status = message => { setText($('status'),message); };
+const arStatus = message => { setText($('ar-status'),message); };
 let renderer, scene, camera, portal, surface, worldTexture, stream, xrSession, hitSource;
 let arSource, arContext, markerRoot, markerControls, reticle, grid;
 let mode = 'preview', placed = false, busy = false, xrSupported = false, ready = false;
@@ -62,7 +64,7 @@ function resize() {
 }
 function setMode(next) {
   mode=next;document.body.classList.toggle('ar-active',next!=='preview');
-  $('ar-hud').hidden=next==='preview';$('mode').textContent=next==='preview'?'3D 預覽':'相機';
+  $('ar-hud').hidden=next==='preview';setText($('mode'),next==='preview'?'3D 預覽':'相機');
   grid.visible=next==='preview';scene.background=null;renderer.setClearColor(0x000000,0);
   placed=false;armed=true;droppedAt=null;lastCountdown=30;refreshLabel();markerReady=false;$('drop').disabled=next!=='camera';
   $('preview-drop').disabled=!ready;portal.getObjectByName('shape').scale.setScalar(Number($('size').value)/2.2);
@@ -95,7 +97,7 @@ async function startCamera() {
   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
   const video=$('camera');video.srcObject=stream;video.hidden=false;await video.play();
   setMode('camera');arStatus('相機預覽 · 無空間定位');
-  $('ar-help').textContent='按 Drop portal 顯示傳送門；單指拖曳位置，雙指縮放。此模式沒有空間定位。';
+  setText($('ar-help'),'按 Drop portal 顯示傳送門；單指拖曳位置，雙指縮放。此模式沒有空間定位。');
 }
 let arLibrary;
 function loadARLibrary() {
@@ -115,7 +117,7 @@ async function startMarker() {
   if(epoch!==generation){stream.getTracks().forEach(t=>t.stop());return;}
   const video=$('camera');video.srcObject=stream;video.hidden=false;await video.play();
   setMode('marker');video.classList.add('marker-video');
-  arStatus('正在準備標記辨識…');$('ar-help').textContent='把 Hiro 圖平放，讓完整黑色邊框留在相機中。';
+  arStatus('正在準備標記辨識…');setText($('ar-help'),'把 Hiro 圖平放，讓完整黑色邊框留在相機中。');
   // ArToolkitSource uses its own stream acquisition. Supply the already authorized video instead.
   arSource=new window.THREEx.ArToolkitSource({sourceType:'webcam',sourceWidth:1280,sourceHeight:720});
   arSource.domElement=video;arSource.ready=true;
@@ -141,8 +143,7 @@ async function startXR() {
   await renderer.xr.setSession(session);
   const viewer=await session.requestReferenceSpace('viewer');hitSource=await session.requestHitTestSource({space:viewer});
   session.addEventListener('select',()=>{if(!session.domOverlayState)drop();});
-  arStatus('慢慢移動手機，掃描地面');$('ar-help').textContent='出現定位圈後按 Drop portal。若沒有按鈕，輕點畫面放置；使用瀏覽器 AR 控制離開。';
-  $('ar-help').textContent+=' 地面 AR 的拍照錄影請使用手機截圖／螢幕錄影。';
+  arStatus('慢慢移動手機，掃描地面');setText($('ar-help'),'出現定位圈後按 Drop portal。若沒有按鈕，輕點畫面放置；使用瀏覽器 AR 控制離開。 地面 AR 的拍照錄影請使用手機截圖／螢幕錄影。');
 }
 function drop() {
   if(placed)return;
@@ -157,7 +158,7 @@ function drop() {
   placed=true;armed=false;droppedAt=performance.now();lastCountdown=30;refreshLabel();portal.visible=true;$('drop').disabled=true;$('reset').disabled=false;$('preview-drop').disabled=true;
   if(mode==='preview'){orbitPreview();status('傳送門已放置，30 秒後自動關閉。');}
   arStatus(mode==='marker'?'已放置 · 保持辨識圖在畫面中':mode==='xr'?'已放置在地面':'已放置 · 相機預覽');
-  $('ar-help').textContent=mode==='marker'?'繞著辨識圖觀看傳送門。辨識圖離開畫面時，傳送門會暫時隱藏。':mode==='xr'?'可以移動手機，從不同角度觀看傳送門。':'這個模式的傳送門固定在螢幕上。';
+  setText($('ar-help'),mode==='marker'?'繞著辨識圖觀看傳送門。辨識圖離開畫面時，傳送門會暫時隱藏。':mode==='xr'?'可以移動手機，從不同角度觀看傳送門。':'這個模式的傳送門固定在螢幕上。');
 }
 function resetPlacement() {
   placed=false;armed=true;droppedAt=null;lastCountdown=30;refreshLabel();portal.visible=mode==='camera'||mode==='preview';portal.getObjectByName('shape').scale.setScalar(Number($('size').value)/2.2);$('drop').disabled=mode!=='camera';$('reset').disabled=true;$('preview-drop').disabled=false;
@@ -188,7 +189,7 @@ async function chooseImage(file) {
     canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.NoColorSpace;
     worldTexture?.dispose();worldTexture=texture;uniforms.picture.value=texture;uniforms.globals.value[2].set(1/canvas.width,1/canvas.height,canvas.width,canvas.height);uniforms.globals.value[3].w=1;
-    $('thumbnail').src=canvas.toDataURL('image/jpeg',.75);$('filename').textContent=file.name;
+    $('thumbnail').src=canvas.toDataURL('image/jpeg',.75);setText($('filename'),file.name);
     status('圖片已更新。可以開啟相機放置傳送門。');
   }catch(e){status(e.message);}finally{URL.revokeObjectURL(url);$('image').value='';}
 }
@@ -268,20 +269,20 @@ async function init() {
     ['preview-drop','preview-photo','preview-record'].forEach(id=>$(id).disabled=false);
     if(navigator.xr && isSecureContext){try{xrSupported=await navigator.xr.isSessionSupported('immersive-ar');}catch{}}
     startButtons.forEach(id=>$(id).disabled=false);$('start-xr').disabled=!xrSupported;
-    if(!navigator.mediaDevices?.getUserMedia || !isSecureContext){$('start-marker').disabled=$('start-camera').disabled=true;$('support').textContent='相機需要 HTTPS 或 localhost，請部署至 GitHub Pages 後開啟。';}
-    else $('support').textContent=xrSupported?'此裝置可使用地面 AR，也可以使用標記 AR。':'此瀏覽器未提供地面 AR。請使用標記 AR 或相機預覽。';
+    if(!navigator.mediaDevices?.getUserMedia || !isSecureContext){$('start-marker').disabled=$('start-camera').disabled=true;setText($('support'),'相機需要 HTTPS 或 localhost，請部署至 GitHub Pages 後開啟。');}
+    else setText($('support'),xrSupported?'此裝置可使用地面 AR，也可以使用標記 AR。':'此瀏覽器未提供地面 AR。請使用標記 AR 或相機預覽。');
     status('傳送門已就緒，請選擇世界圖片。');
   }catch(e){status(`載入失敗：${e.message}。請確認瀏覽器支援 WebGL，並由網站網址開啟。`);}
 }
 $('image').addEventListener('change',e=>chooseImage(e.target.files[0]));['world','creator','instance','access','occupancy','capacity'].forEach(id=>$(id).addEventListener('input',()=>{refreshLabel();if(id==='world'||id==='creator')document.fonts.load(`400 68px ${portalFont}`,$('world').value+$('creator').value).then(refreshLabel).catch(()=>{});}));
-$('size').addEventListener('input',()=>{const height=Number($('size').value);$('size-value').textContent=`${height.toFixed(1)} m`;portal?.getObjectByName('shape').scale.setScalar(height/2.2);});
+$('size').addEventListener('input',()=>{const height=Number($('size').value);setText($('size-value'),`${height.toFixed(1)} m`);portal?.getObjectByName('shape').scale.setScalar(height/2.2);});
 $('start-camera').addEventListener('click',()=>begin(startCamera));$('start-marker').addEventListener('click',()=>begin(startMarker));$('start-xr').addEventListener('click',()=>begin(startXR));
 $('exit').addEventListener('click',stop);$('drop').addEventListener('click',drop);$('reset').addEventListener('click',resetPlacement);
 $('preview-drop').addEventListener('click',()=>{if(!placed)drop();});
 ['photo','preview-photo'].forEach(id=>$(id).addEventListener('click',()=>{captureFrameRequested=true;}));
 ['record','preview-record'].forEach(id=>$(id).addEventListener('click',()=>{if(recorder?.state==='recording')finishRecording();else startRecording();}));
 $('media-close').addEventListener('click',()=>{$('media-video').pause();$('media-dialog').close();});
-$('media-share').addEventListener('click',async()=>{if(!savedMedia)return;try{await navigator.share({files:[savedMedia],title:'Portal'});}catch(e){if(e.name!=='AbortError')$('media-note').textContent='無法分享，請使用下載按鈕儲存檔案。';}});
+$('media-share').addEventListener('click',async()=>{if(!savedMedia)return;try{await navigator.share({files:[savedMedia],title:'Portal'});}catch(e){if(e.name!=='AbortError')setText($('media-note'),'無法分享，請使用下載按鈕儲存檔案。');}});
 $('ar-hud').addEventListener('beforexrselect',e=>e.preventDefault());
 document.addEventListener('visibilitychange',()=>{if(document.hidden && mode!=='preview')stop();});
 window.addEventListener('pagehide',()=>{stream?.getTracks().forEach(t=>t.stop());hitSource?.cancel();xrSession?.end().catch(()=>{});});
@@ -305,7 +306,9 @@ function updatePortal(now) {
   expandingRing.scale.setScalar(.15+1.45*(1-burst));ringUniforms.time.value=uniforms.time.value;
   ringUniforms.globals.value[7].w=burst;
   surface.updateWorldMatrix(true,false);
-  const eye=new THREE.Vector3();(mode==='xr'?renderer.xr.getCamera():camera).getWorldPosition(eye);uniforms.localCamera.value.copy(surface.worldToLocal(eye));
+  const eye=new THREE.Vector3();(mode==='xr'?renderer.xr.getCamera():camera).getWorldPosition(eye);uniforms.localCamera.value.copy(surface.worldToLocal(eye.clone()));
+  const label=shape.getObjectByName('label');const labelEye=shape.worldToLocal(eye.clone());
+  label.rotation.set(0,Math.atan2(labelEye.x-label.position.x,labelEye.z-label.position.z),0);
   const m=surface.matrixWorld.elements;uniforms.ratio.value=Math.sqrt(m[1]*m[1]+m[5]*m[5]+m[9]*m[9])/Math.max(.00001,Math.sqrt(m[0]*m[0]+m[4]*m[4]+m[8]*m[8]));
   const t=reducedMotion?0:now*.001;
   updateEmitters(emitters,reducedMotion?1.2:Math.max(0,(now-(droppedAt??now))/1000),renderer.domElement.height,0,animation.particleOpacity);
@@ -338,7 +341,7 @@ function startRecording() {
     recorder.start(250);setRecordButtons(true);arStatus('錄影中 · 無聲 · 再按一次停止');status('錄影中（無聲），再按一次停止。最長 2 分鐘。');
   }catch(e){recordingStream?.getTracks().forEach(t=>t.stop());recordingStream=null;recorder=null;status(`無法錄影：${e.message}`);arStatus('無法錄影，請使用手機螢幕錄影。');}
 }
-function setRecordButtons(active){['record','preview-record'].forEach(id=>{$(id).textContent=active?'停止錄影':'錄影';$(id).classList.toggle('recording',active);});}
+function setRecordButtons(active){['record','preview-record'].forEach(id=>{setText($(id),active?'停止錄影':'錄影');$(id).classList.toggle('recording',active);});}
 function finishRecording(){if(recorder?.state==='recording')recorder.stop();}
 function showMedia(blob,type) {
   $('media-video').pause();
@@ -347,8 +350,8 @@ function showMedia(blob,type) {
   savedMedia=new File([blob],`portal-${new Date().toISOString().replace(/[:.]/g,'-')}.${extension}`,{type});
   $('media-image').hidden=video;$('media-video').hidden=!video;
   if(video){$('media-video').src=mediaUrl;$('media-image').removeAttribute('src');}else{$('media-image').src=mediaUrl;$('media-video').removeAttribute('src');}
-  $('media-title').textContent=video?'傳送門錄影':'傳送門照片';$('media-download').href=mediaUrl;$('media-download').download=savedMedia.name;
-  $('media-note').textContent=video?'錄影不含聲音。下載後可在裝置上開啟，或分享並儲存到相簿。':'照片包含相機畫面與傳送門，不包含操作按鈕。';
+  setText($('media-title'),video?'傳送門錄影':'傳送門照片');$('media-download').href=mediaUrl;$('media-download').download=savedMedia.name;
+  setText($('media-note'),video?'錄影不含聲音。下載後可在裝置上開啟，或分享並儲存到相簿。':'照片包含相機畫面與傳送門，不包含操作按鈕。');
   $('media-share').hidden=!(navigator.canShare?.({files:[savedMedia]}));if(!$('media-dialog').open)$('media-dialog').showModal();
 }
 

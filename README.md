@@ -3,6 +3,10 @@
 正式網站：https://nekodakohaku.github.io/portal-ar/  
 GitHub：https://github.com/NekodaKohaku/portal-ar
 
+介面支援中文、English、日本語。預設 Auto 依瀏覽器／系統偏好語言決定，無對應語言時使用英文；手動選擇會保存在此裝置，可選 Auto 恢復跟隨系統。類型選單保留 Invite、Invite+、Friends、Friends+、Public 英文名稱，使用者輸入不翻譯。辨識圖頁沿用相同語言偏好。
+
+上方五行文字沿傳送門的垂直軸轉向觀察者，不隨視角上下傾斜；門面保持放置時的方向。
+
 純靜態網頁，可由 GitHub Pages 託管。選圖片、設定五行資訊與大小，按相機模式，再按 **Drop portal**。圖片只在裝置記憶體中處理，不上傳；重新整理會清除設定。
 
 五行依序為世界名稱、創建者、伺服器編號與類型、目前／上限人數、30 秒倒數。這些資訊是手動設定，不向 VRChat 查詢。支援 Windows / Android / iOS 圖示選擇。Drop 前顯示虛線橢圓、中央圖示、地面圓環與指引軌跡；Drop 後顯示世界圖片、粒子和五行資訊，30 秒後播放關閉效果，接著可重新放置。
