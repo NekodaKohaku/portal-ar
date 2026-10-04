@@ -1,4 +1,12 @@
 const messages={
+ '日本 · JP':['Japan · JP','日本 · JP'],
+ '美國西部 · US West':['US West · USW','米国西部 · US West'],
+ '美國東部 · US East':['US East · USE','米国東部 · US East'],
+ '歐洲 · EU':['Europe · EU','ヨーロッパ · EU'],
+ '地面 AR 使用實際公尺。':['Surface AR uses real-world meters.','平面ARのサイズは実際のメートル単位です。'],
+ '地面 AR 只接受水平表面，不會偵測牆壁穿透或周圍障礙物。':['Surface AR accepts horizontal surfaces only; it does not detect walls or surrounding obstacles.','平面ARは水平面のみ対応し、壁や周囲の障害物を検出しません。'],
+ '此裝置可使用 Android 地面 AR。':['This device supports Android surface AR.','この端末はAndroidの平面ARに対応しています。'],
+ '此瀏覽器未提供地面 AR。請使用支援 ARCore 的 Android 手機，或相機預覽。':['Surface AR is unavailable. Use an ARCore-compatible Android phone, or camera preview.','平面ARを利用できません。ARCore対応のAndroid端末、またはカメラプレビューをご利用ください。'],
  '清除已保存圖片':['Clear saved image','保存した画像を削除'],
  '只保存最後一張圖片，新圖片會覆蓋舊圖片。':['Only the latest image is saved; a new image replaces the previous one.','最後の画像のみ保存され、新しい画像で上書きされます。'],
  '每次 Drop 使用隨機 5 位數':['Random 5-digit number on each Drop','Dropごとにランダムな5桁の番号'],

@@ -2,7 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import {createEmitters,updateEmitters} from './effects.js?v=20261004-touch';
 import {vertexShader,fragmentShader} from './portal-shader.js';
 import {portalFrame} from './lifecycle.js';
-import {initLanguages,setText,t} from './i18n.js?v=20261004-options';
+import {initLanguages,setText,t} from './i18n.js?v=20261004-android';
 import {installGestures} from './gestures.js';
 import {installPlacementInput} from './placement-input.js';
 const $ = id => document.getElementById(id);
@@ -66,7 +66,7 @@ function makeLabel() {
   const ctx=c.getContext('2d');ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';
   const capacity=Math.max(1,Math.min(999,Number($('capacity').value)||32));
   const occupancy=Math.max(0,Math.min(capacity,Number($('occupancy').value)||0));
-  const access=$('access').value;const rows=[$('world').value.trim()||'My world',$('creator').value.trim()||'Your name',`#${$('instance').value.trim()||'15247'}  ${access}`,`${occupancy} / ${capacity}`,String(lastCountdown).padStart(2,'0')];
+  const access=$('access').value;const regionSuffix=$('region').value==='us'?' USW':$('region').value==='use'?' USE':'';const rows=[$('world').value.trim()||'My world',$('creator').value.trim()||'Your name',`#${$('instance').value.trim()||'15247'}  ${access}${regionSuffix}`,`${occupancy} / ${capacity}`,String(lastCountdown).padStart(2,'0')];
   rows.forEach((text,i)=>{
     let font=i===4?88:68;ctx.font=`${i===4?'700':'400'} ${font}px ${portalFont}`;
     while(ctx.measureText(text).width>880 && font>24){ctx.font=`${i===4?'700':'400'} ${--font}px ${portalFont}`;}
@@ -81,9 +81,8 @@ function drawRegion(ctx,x,y,region){
   const rect=(color,a,b,w,h)=>{ctx.fillStyle=color;ctx.fillRect(a,b,w,h);};
   rect('#fff',-26,-26,52,52);
   if(region==='jp'){ctx.fillStyle='#bd1846';ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fill();}
-  else if(region==='us'){for(let i=0;i<13;i++)if(i%2===0)rect('#b22234',-26,-26+i*4,52,4);rect('#3c3b6e',-26,-26,28,28);for(let r=0;r<5;r++)for(let c=0;c<5;c++)rect('#fff',-23+c*5,-23+r*5,2,2);}
-  else if(region==='tw'){rect('#fe0000',-26,-26,52,52);rect('#000095',-26,-26,30,30);ctx.save();ctx.translate(-11,-11);ctx.fillStyle='#fff';ctx.beginPath();for(let i=0;i<24;i++){const a=i*Math.PI/12-Math.PI/2,r=i%2?6:11;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}ctx.closePath();ctx.fill();ctx.restore();}
-  else {const colors={de:['#000','#d00','#ffce00'],fr:['#002395','#fff','#ed2939'],it:['#009246','#fff','#ce2b37'],nl:['#ae1c28','#fff','#21468b']}[region]||['#fff','#fff','#fff'];colors.forEach((color,i)=>['fr','it'].includes(region)?rect(color,-26+i*52/3,-26,52/3,52):rect(color,-26,-26+i*52/3,52,52/3));}
+  else if(region==='us'||region==='use'){for(let i=0;i<13;i++)if(i%2===0)rect('#b22234',-26,-26+i*4,52,4);rect('#3c3b6e',-26,-26,28,28);for(let r=0;r<5;r++)for(let c=0;c<5;c++)rect('#fff',-23+c*5,-23+r*5,2,2);}
+  else if(region==='eu'){rect('#003399',-26,-26,52,52);ctx.fillStyle='#ffcc00';for(let i=0;i<12;i++){const a=i*Math.PI/6-Math.PI/2;const sx=Math.cos(a)*16,sy=Math.sin(a)*16;ctx.beginPath();for(let j=0;j<10;j++){const angle=j*Math.PI/5-Math.PI/2,r=j%2?1.2:3;ctx.lineTo(sx+Math.cos(angle)*r,sy+Math.sin(angle)*r);}ctx.closePath();ctx.fill();}}
   ctx.restore();
 }
 function refreshLabel() {
@@ -318,7 +317,7 @@ async function init() {
     if(navigator.xr && isSecureContext){try{xrSupported=await navigator.xr.isSessionSupported('immersive-ar');}catch{}}
     startButtons.forEach(id=>$(id).disabled=false);$('start-xr').disabled=!xrSupported;
     if(!navigator.mediaDevices?.getUserMedia || !isSecureContext){$('start-marker').disabled=$('start-camera').disabled=true;setText($('support'),'相機需要 HTTPS 或 localhost，請部署至 GitHub Pages 後開啟。');}
-    else setText($('support'),xrSupported?'此裝置可使用地面 AR，也可以使用標記 AR。':'此瀏覽器未提供地面 AR。請使用標記 AR 或相機預覽。');
+    else setText($('support'),xrSupported?'此裝置可使用 Android 地面 AR。':'此瀏覽器未提供地面 AR。請使用支援 ARCore 的 Android 手機，或相機預覽。');
     status('傳送門已就緒，請選擇世界圖片。');
     try{const saved=await imageStore('readonly',store=>store.get('world'));if(saved?.blob){await chooseImage(new File([saved.blob],saved.name||'world.jpg',{type:saved.blob.type}),false);setText($('image-storage'),`${t('已保存圖片')} · ${(saved.blob.size/1024/1024).toFixed(2)} MB`);}}catch{}
   }catch(e){status(`載入失敗：${e.message}。請確認瀏覽器支援 WebGL，並由網站網址開啟。`);}
