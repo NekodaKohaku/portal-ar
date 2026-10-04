@@ -2,11 +2,25 @@ import * as THREE from './vendor/three.module.js';
 import {createEmitters,updateEmitters} from './effects.js?v=20261004-touch';
 import {vertexShader,fragmentShader} from './portal-shader.js';
 import {portalFrame} from './lifecycle.js';
-import {initLanguages,setText,t} from './i18n.js?v=20261004-language';
+import {initLanguages,setText,t} from './i18n.js?v=20261004-memory';
 import {installGestures} from './gestures.js';
 import {installPlacementInput} from './placement-input.js';
 const $ = id => document.getElementById(id);
 initLanguages();
+const savedFields=['world','creator','instance','access','occupancy','capacity','size','platform-windows','platform-android','platform-apple'];
+try{
+  const saved=JSON.parse(localStorage.getItem('portal-settings')||'{}');
+  savedFields.forEach(id=>{const input=$(id);if(!(id in saved))return;if(input.type==='checkbox')input.checked=saved[id]===true;else if(typeof saved[id]==='string'){if(input.tagName==='SELECT'&&![...input.options].some(o=>o.value===saved[id]))return;input.value=saved[id];}});
+}catch{}
+function saveSettings(){try{localStorage.setItem('portal-settings',JSON.stringify(Object.fromEntries(savedFields.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]))));}catch{}}
+savedFields.forEach(id=>$(id).addEventListener('input',saveSettings));
+setText($('size-value'),`${Number($('size').value).toFixed(1)} m`);
+function imageStore(mode,action){return new Promise((resolve,reject)=>{
+  const request=indexedDB.open('portal-preferences',1);
+  request.onupgradeneeded=()=>request.result.createObjectStore('images');
+  request.onerror=()=>reject(request.error);
+  request.onsuccess=()=>{const db=request.result;const tx=db.transaction('images',mode);const operation=action(tx.objectStore('images'));let result;operation.onsuccess=()=>{result=operation.result;};tx.oncomplete=()=>{db.close();resolve(result);};tx.onerror=()=>{db.close();reject(tx.error);};};
+});}
 const status = message => { setText($('status'),message); };
 const arStatus = message => { setText($('ar-status'),message); };
 let renderer, scene, camera, portal, surface, worldTexture, stream, xrSession, hitSource;
@@ -193,7 +207,7 @@ async function stop() {
   if(markerRoot){scene.add(portal);scene.remove(markerRoot);markerRoot=null;}
   reticle.visible=false;setMode('preview');status('已結束相機。可以更換圖片再放置。');
 }
-async function chooseImage(file) {
+async function chooseImage(file,remember=true) {
   if(!file)return;
   if(file.size>20*1024*1024){status('請選擇 20 MB 以下的圖片。');return;}
   if(!/^image\/(jpeg|png|webp)$/.test(file.type)){status('請選 JPG、PNG 或 WebP 圖片。');return;}
@@ -206,6 +220,7 @@ async function chooseImage(file) {
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.NoColorSpace;
     worldTexture?.dispose();worldTexture=texture;uniforms.picture.value=texture;uniforms.globals.value[2].set(1/canvas.width,1/canvas.height,canvas.width,canvas.height);uniforms.globals.value[3].w=1;
     $('thumbnail').src=canvas.toDataURL('image/jpeg',.75);setText($('filename'),file.name);
+    if(remember){const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.9));if(blob)try{await imageStore('readwrite',store=>store.put({blob,name:file.name},'world'));}catch{status(t('圖片已更新。可以開啟相機放置傳送門。')+' '+t('此裝置無法記憶圖片，重新開啟時請再次選擇。'));return;}}
     status('圖片已更新。可以開啟相機放置傳送門。');
   }catch(e){status(e.message);}finally{URL.revokeObjectURL(url);$('image').value='';}
 }
@@ -291,6 +306,7 @@ async function init() {
     if(!navigator.mediaDevices?.getUserMedia || !isSecureContext){$('start-marker').disabled=$('start-camera').disabled=true;setText($('support'),'相機需要 HTTPS 或 localhost，請部署至 GitHub Pages 後開啟。');}
     else setText($('support'),xrSupported?'此裝置可使用地面 AR，也可以使用標記 AR。':'此瀏覽器未提供地面 AR。請使用標記 AR 或相機預覽。');
     status('傳送門已就緒，請選擇世界圖片。');
+    try{const saved=await imageStore('readonly',store=>store.get('world'));if(saved?.blob)await chooseImage(new File([saved.blob],saved.name||'world.jpg',{type:saved.blob.type}),false);}catch{}
   }catch(e){status(`載入失敗：${e.message}。請確認瀏覽器支援 WebGL，並由網站網址開啟。`);}
 }
 $('image').addEventListener('change',e=>chooseImage(e.target.files[0]));['world','creator','instance','access','occupancy','capacity'].forEach(id=>$(id).addEventListener('input',()=>{refreshLabel();if(id==='world'||id==='creator')document.fonts.load(`400 68px ${portalFont}`,$('world').value+$('creator').value).then(refreshLabel).catch(()=>{});}));
