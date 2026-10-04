@@ -1,6 +1,7 @@
 import * as THREE from './vendor/three.module.js';
 import {createEmitters,updateEmitters} from './effects.js';
 import {vertexShader,fragmentShader} from './portal-shader.js';
+import {portalFrame} from './lifecycle.js';
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
 const arStatus = message => { $('ar-status').textContent = message; };
@@ -24,12 +25,12 @@ function makeLabel() {
   const ctx=c.getContext('2d');ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineJoin='round';
   const capacity=Math.max(1,Math.min(999,Number($('capacity').value)||32));
   const occupancy=Math.max(0,Math.min(capacity,Number($('occupancy').value)||0));
-  const access=$('access').value;const rows=[$('world').value.trim()||'My world',$('creator').value.trim()||'Your name',`#${$('instance').value.trim()||'15247'}  ${access}`,`${occupancy} / ${capacity}`,String(lastCountdown)];
+  const access=$('access').value;const rows=[$('world').value.trim()||'My world',$('creator').value.trim()||'Your name',`#${$('instance').value.trim()||'15247'}  ${access}`,`${occupancy} / ${capacity}`,String(lastCountdown).padStart(2,'0')];
   rows.forEach((text,i)=>{
     let font=i===4?88:68;ctx.font=`${i===4?'700':'400'} ${font}px ${portalFont}`;
     while(ctx.measureText(text).width>880 && font>24){ctx.font=`${i===4?'700':'400'} ${--font}px ${portalFont}`;}
     const y=64+i*113;ctx.strokeStyle='#123260b0';ctx.lineWidth=6;ctx.strokeText(text,512,y);ctx.fillStyle='#f4f8ff';ctx.fillText(text,512,y);
-    if(i===2){const x=512-ctx.measureText(text).width/2-36;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,26,0,Math.PI*2);ctx.fill();ctx.fillStyle=access==='Public'?'#26bb7d':access.startsWith('Invite')?'#bd1846':'#eea236';ctx.beginPath();ctx.arc(x,y,16,0,Math.PI*2);ctx.fill();}
+    if(i===2){const x=512-ctx.measureText(text).width/2-36;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,26,0,Math.PI*2);ctx.fill();ctx.fillStyle='#bd1846';ctx.beginPath();ctx.arc(x,y,16,0,Math.PI*2);ctx.fill();}
   });
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
   return t;
@@ -195,7 +196,8 @@ async function init() {
     worldTexture=makeLabel('選擇世界圖片');uniforms.picture.value=worldTexture;
     portal=new THREE.Group();const shape=new THREE.Group();shape.name='shape';portal.add(shape);
     surface=new THREE.Mesh(geometry,new THREE.ShaderMaterial({uniforms,vertexShader,fragmentShader,transparent:true,side:THREE.DoubleSide,depthWrite:false}));
-    surface.position.y=1.1;surface.scale.set(1.1,1.1*.518576979637146/.742755115032196,1);surface.rotation.z=-Math.PI/2;shape.add(surface);
+    const membrane=new THREE.Group();membrane.name='membrane';membrane.position.y=1.1;shape.add(membrane);
+    surface.scale.set(1.1,1.1*.518576979637146/.742755115032196,1);surface.rotation.z=-Math.PI/2;membrane.add(surface);
     ringUniforms={time:{value:0},picture:uniforms.picture,noiseMap:uniforms.noiseMap,globals:{value:fxRegisters.map(v=>new THREE.Vector4(...v))},ratio:{value:1},localCamera:{value:new THREE.Vector3(0,0,3)},flash:{value:0}};
     expandingRing=new THREE.Mesh(geometry,new THREE.ShaderMaterial({uniforms:ringUniforms,vertexShader,fragmentShader,transparent:true,side:THREE.DoubleSide,depthWrite:false}));expandingRing.rotation.x=-Math.PI/2;expandingRing.position.y=1.1;shape.add(expandingRing);
     const label=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1.05),new THREE.MeshBasicMaterial({map:makeLabel(),transparent:true,side:THREE.DoubleSide,depthWrite:false}));
@@ -268,27 +270,27 @@ window.addEventListener('pagehide',()=>{stream?.getTracks().forEach(t=>t.stop())
 init();
 
 function updatePortal(now) {
-  let openness=1;burst=0;
+  let animation=portalFrame(1,reducedMotion);burst=0;
   if(droppedAt!==null){
-    const elapsed=(now-droppedAt)/1000;const seconds=Math.max(0,Math.ceil(30-elapsed));
+    const elapsed=(now-droppedAt)/1000;animation=portalFrame(elapsed,reducedMotion);const seconds=animation.countdown;
     if(seconds!==lastCountdown){lastCountdown=seconds;refreshLabel();}
-    if(elapsed<.65){const p=Math.min(1,elapsed/.65);openness=reducedMotion?1:1-Math.pow(1-p,3);burst=1-p;}
-    else if(elapsed>=30){const p=Math.min(1,(elapsed-30)/.85);openness=reducedMotion?0:Math.pow(1-p,2);burst=Math.sin(p*Math.PI);
-      if(p===1){placed=false;droppedAt=null;portal.visible=false;$('preview-drop').disabled=false;$('drop').disabled=mode==='marker'?!markerReady:mode==='xr';$('reset').disabled=false;status('30 秒結束，傳送門已關閉。可以再次 Drop。');arStatus('傳送門已關閉 · 可以重新放置');}
-    }
+    burst=animation.ring;
+    if(animation.finished){placed=false;droppedAt=null;portal.visible=false;$('preview-drop').disabled=false;$('drop').disabled=mode==='marker'?!markerReady:mode==='xr';$('reset').disabled=false;status('30 秒結束，傳送門已關閉。可以再次 Drop。');arStatus('傳送門已關閉 · 可以重新放置');}
   }
-  const base=Number($('size').value)/2.2;const shape=portal.getObjectByName('shape');shape.scale.set(base*Math.max(.001,openness),base*(.8+.2*openness),base);
+  const base=Number($('size').value)/2.2;const shape=portal.getObjectByName('shape');shape.scale.setScalar(base);
+  shape.getObjectByName('membrane').scale.set(Math.max(.001,animation.x),Math.max(.001,animation.y),1);
+  shape.getObjectByName('label').visible=animation.information;
   shape.visible=placed;placementGuide.visible=!placed&&armed;placementGuide.scale.setScalar(base);
-  ['windows','android','apple'].forEach(name=>shape.getObjectByName(`platform-${name}`).visible=$(`platform-${name}`).checked);
+  ['windows','android','apple'].forEach(name=>shape.getObjectByName(`platform-${name}`).visible=animation.information&&$(`platform-${name}`).checked);
   uniforms.flash.value=0;
   expandingRing.visible=!reducedMotion&&burst>.001;
-  expandingRing.scale.setScalar(1+3*(1-burst));ringUniforms.time.value=uniforms.time.value;
+  expandingRing.scale.setScalar(.15+1.45*(1-burst));ringUniforms.time.value=uniforms.time.value;
   ringUniforms.globals.value[7].w=burst;
   surface.updateWorldMatrix(true,false);
   const eye=new THREE.Vector3();(mode==='xr'?renderer.xr.getCamera():camera).getWorldPosition(eye);uniforms.localCamera.value.copy(surface.worldToLocal(eye));
   const m=surface.matrixWorld.elements;uniforms.ratio.value=Math.sqrt(m[1]*m[1]+m[5]*m[5]+m[9]*m[9])/Math.max(.00001,Math.sqrt(m[0]*m[0]+m[4]*m[4]+m[8]*m[8]));
   const t=reducedMotion?0:now*.001;
-  updateEmitters(emitters,reducedMotion?1.2:Math.max(0,(now-(droppedAt??now))/1000),renderer.domElement.height,burst);
+  updateEmitters(emitters,reducedMotion?1.2:Math.max(0,(now-(droppedAt??now))/1000),renderer.domElement.height,0,animation.particleOpacity);
   guideArrows.forEach((arrow,i)=>{const s=((i/35+t*.2)%1);arrow.position.set(.35*s,Math.sin(s*Math.PI)*.65+.03,2.4*s);arrow.rotation.x=-Math.atan2(Math.cos(s*Math.PI)*Math.PI*.65,2.4);arrow.scale.setScalar(.35+s);});
 }
 function composeCapture() {
@@ -331,3 +333,4 @@ function showMedia(blob,type) {
   $('media-note').textContent=video?'錄影不含聲音。下載後可在裝置上開啟，或分享並儲存到相簿。':'照片包含相機畫面與傳送門，不包含操作按鈕。';
   $('media-share').hidden=!(navigator.canShare?.({files:[savedMedia]}));if(!$('media-dialog').open)$('media-dialog').showModal();
 }
+
