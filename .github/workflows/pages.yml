@@ -21,7 +21,7 @@ jobs:
       - name: Stage website only
         run: |
           mkdir -p _site
-          cp index.html marker.html style.css app.js _site/
+          cp index.html marker.html style.css app.js effects.js _site/
           cp -r assets vendor _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
