@@ -319,7 +319,13 @@ function updatePortal(now) {
   shape.getObjectByName('membrane').scale.set(Math.max(.001,animation.x),Math.max(.001,animation.y),1);
   shape.getObjectByName('label').visible=animation.information;
   shape.visible=placed;placementGuide.visible=!placed&&armed;placementGuide.scale.setScalar(base);
-  ['windows','android','apple'].forEach(name=>shape.getObjectByName(`platform-${name}`).visible=animation.information&&$(`platform-${name}`).checked);
+  let platformIndex=0;
+  ['windows','android','apple'].forEach(name=>{
+    const icon=shape.getObjectByName(`platform-${name}`);
+    const enabled=$(`platform-${name}`).checked;
+    icon.visible=animation.information&&enabled;
+    if(enabled)icon.position.x=.87+platformIndex++*.29;
+  });
   uniforms.flash.value=0;
   expandingRing.visible=!reducedMotion&&burst>.001;
   expandingRing.scale.setScalar(.15+1.45*(1-burst));ringUniforms.time.value=uniforms.time.value;
