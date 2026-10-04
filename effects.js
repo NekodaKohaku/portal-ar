@@ -10,7 +10,7 @@ export function createEmitters(config,group){
     const tex=new THREE.TextureLoader().load(`./assets/${c.texture}`);
     // Renderer source: stretched billboard, lengthScale=1, velocityScale=0.
     // Align the ember texture with projected inward velocity, including side views.
-    const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{map:{value:tex},color:{value:new THREE.Color(...c.color)},stretched:{value:index===1?1:0}},vertexShader:`attribute vec3 particleCenter;attribute float particleSize,particleAlpha,particleAngle;uniform float stretched;varying float alpha;varying vec2 texUV;void main(){alpha=particleAlpha;texUV=uv;vec4 mv=modelViewMatrix*vec4(particleCenter,1.);vec3 velocity=mat3(modelViewMatrix)*vec3(sin(particleAngle),-cos(particleAngle),0.);float angle=stretched*atan(-velocity.x,velocity.y);float c=cos(angle),s=sin(angle);vec2 offset=mat2(c,s,-s,c)*position.xy;float scale=length(modelViewMatrix[0].xyz);mv.xy+=offset*particleSize*scale;gl_Position=projectionMatrix*mv;}`,fragmentShader:`uniform sampler2D map;uniform vec3 color;varying float alpha;varying vec2 texUV;void main(){vec4 tex=texture2D(map,texUV);if(alpha*tex.a<.01)discard;gl_FragColor=vec4(color*tex.rgb,alpha*tex.a);}`});
+    const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{map:{value:tex},color:{value:new THREE.Color(...c.color)},ellipse:{value:new THREE.Vector2(c.scale[1],c.scale[0])},stretched:{value:index===1?1:0}},vertexShader:`attribute vec3 particleCenter;attribute float particleSize,particleAlpha,particleAngle;uniform float stretched;uniform vec2 ellipse;varying float alpha;varying vec2 texUV;void main(){alpha=particleAlpha;texUV=uv;vec4 mv=modelViewMatrix*vec4(particleCenter,1.);vec3 velocity=mat3(modelViewMatrix)*vec3(sin(particleAngle)*ellipse.x,-cos(particleAngle)*ellipse.y,0.);float angle=stretched*atan(-velocity.y,-velocity.x);float c=cos(angle),s=sin(angle);vec2 offset=mat2(c,s,-s,c)*position.xy;float scale=length(modelViewMatrix[0].xyz);mv.xy+=offset*particleSize*scale;gl_Position=projectionMatrix*mv;}`,fragmentShader:`uniform sampler2D map;uniform vec3 color;varying float alpha;varying vec2 texUV;void main(){vec4 tex=texture2D(map,texUV);if(alpha*tex.a<.01)discard;gl_FragColor=vec4(color*tex.rgb,alpha*tex.a);}`});
     const points=new THREE.Mesh(geo,mat);points.frustumCulled=false;group.add(points);
     return {c,index,points,positions,sizes,alphas,angles};
   });
@@ -23,7 +23,7 @@ export function updateEmitters(emitters,time,height,burst=0,opacity=1){
       const phase=i/c.rate;const cycle=Math.floor((time-phase)/slotPeriod);const birth=phase+cycle*slotPeriod;const age=time-birth;
       const seed=i+(Math.max(0,cycle)*c.maximum)+e.index*919;
       const life=THREE.MathUtils.lerp(...c.lifetime,hash(seed+1));const speed=THREE.MathUtils.lerp(...c.speed,hash(seed+2));
-      const a=hash(seed+3)*Math.PI*2;const radius=c.radius*(1-c.radiusThickness*hash(seed+4))+speed*age;
+      const a=hash(seed+3)*Math.PI*2;const radius=c.radius*(1.12-c.radiusThickness*hash(seed+4))+speed*age;
       // Original Base Graphics has a 90-degree Z rotation and uniform 1.2 scale.
       positions[i*3]=-Math.sin(a)*radius*c.scale[1]*1.2+Math.sin(a)*burst*.18;
       positions[i*3+1]=1.1+Math.cos(a)*radius*c.scale[0]*1.2+Math.cos(a)*burst*.18;
@@ -35,3 +35,4 @@ export function updateEmitters(emitters,time,height,burst=0,opacity=1){
     ['particleCenter','particleSize','particleAlpha','particleAngle'].forEach(key=>e.points.geometry.attributes[key].needsUpdate=true);
   }
 }
+

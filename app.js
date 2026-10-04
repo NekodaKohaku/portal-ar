@@ -2,6 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import {createEmitters,updateEmitters} from './effects.js';
 import {vertexShader,fragmentShader} from './portal-shader.js';
 import {portalFrame} from './lifecycle.js';
+import {installGestures} from './gestures.js';
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
 const arStatus = message => { $('ar-status').textContent = message; };
@@ -9,6 +10,12 @@ let renderer, scene, camera, portal, surface, worldTexture, stream, xrSession, h
 let arSource, arContext, markerRoot, markerControls, reticle, grid;
 let mode = 'preview', placed = false, busy = false, xrSupported = false, ready = false;
 let markerReady = false, generation = 0, resizeObserver;
+let orbitYaw=0,orbitPitch=0,orbitDistance=5.8;
+function orbitPreview(){
+  const height=placed?1.75:1.5;
+  camera.position.set(Math.sin(orbitYaw)*Math.cos(orbitPitch)*orbitDistance,height+Math.sin(orbitPitch)*orbitDistance,Math.cos(orbitYaw)*Math.cos(orbitPitch)*orbitDistance);
+  camera.lookAt(0,height,0);
+}
 let droppedAt=null,lastCountdown=30,burst=0,emitters=[],placementGuide,guideArrows=[],armed=true,expandingRing,ringUniforms;
 let recorder=null,recordingStream=null,recordChunks=[],recordStarted=0,recordWidth=0,recordHeight=0;
 let savedMedia=null,mediaUrl=null,captureFrameRequested=false;
@@ -63,7 +70,7 @@ function setMode(next) {
   $('reset').disabled=true;
   if(next==='preview'){
     scene.add(portal);portal.position.set(0,0,0);portal.rotation.set(0,0,0);portal.visible=true;
-    portal.scale.setScalar(1);camera.position.set(0,1.5,5.8);camera.lookAt(0,1.5,0);
+    portal.scale.setScalar(1);orbitYaw=orbitPitch=0;orbitDistance=5.8;orbitPreview();
   } else if(next==='camera'){
     scene.add(portal);portal.position.set(0,0,-4.5);portal.rotation.set(0,0,0);portal.scale.setScalar(1);portal.visible=true;
     camera.position.set(0,1.65,0);camera.rotation.set(0,0,0);
@@ -88,7 +95,7 @@ async function startCamera() {
   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
   const video=$('camera');video.srcObject=stream;video.hidden=false;await video.play();
   setMode('camera');arStatus('相機預覽 · 無空間定位');
-  $('ar-help').textContent='按 Drop portal 顯示傳送門；它會跟著畫面移動。';
+  $('ar-help').textContent='按 Drop portal 顯示傳送門；單指拖曳位置，雙指縮放。此模式沒有空間定位。';
 }
 let arLibrary;
 function loadARLibrary() {
@@ -148,7 +155,7 @@ function drop() {
     reticle.visible=false;
   }else if(mode==='marker' && !markerReady)return;
   placed=true;armed=false;droppedAt=performance.now();lastCountdown=30;refreshLabel();portal.visible=true;$('drop').disabled=true;$('reset').disabled=false;$('preview-drop').disabled=true;
-  if(mode==='preview'){camera.position.set(0,1.75,5.8);camera.lookAt(0,1.75,0);status('傳送門已放置，30 秒後自動關閉。');}
+  if(mode==='preview'){orbitPreview();status('傳送門已放置，30 秒後自動關閉。');}
   arStatus(mode==='marker'?'已放置 · 保持辨識圖在畫面中':mode==='xr'?'已放置在地面':'已放置 · 相機預覽');
   $('ar-help').textContent=mode==='marker'?'繞著辨識圖觀看傳送門。辨識圖離開畫面時，傳送門會暫時隱藏。':mode==='xr'?'可以移動手機，從不同角度觀看傳送門。':'這個模式的傳送門固定在螢幕上。';
 }
@@ -219,6 +226,17 @@ async function init() {
     grid=new THREE.GridHelper(16,32,0x274e77,0x162a43);grid.position.y=-.015;scene.add(grid);
     reticle=new THREE.Mesh(new THREE.RingGeometry(.13,.16,48).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x8bd1ff,side:THREE.DoubleSide}));reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
     setMode('preview');resizeObserver=new ResizeObserver(resize);resizeObserver.observe($('stage'));window.addEventListener('resize',resize);
+    installGestures($('viewport'),{
+      enabled:()=>ready&&mode!=='xr',
+      drag:(dx,dy)=>{
+        if(mode==='preview'){orbitYaw-=dx*Math.PI*2;orbitPitch=THREE.MathUtils.clamp(orbitPitch+dy*Math.PI,-1.1,1.1);orbitPreview();}
+        else if(mode==='camera'){const height=2*Math.tan(camera.fov*Math.PI/360)*Math.abs(portal.position.z);portal.position.x+=dx*height*camera.aspect;portal.position.y-=dy*height;}
+      },
+      zoom:factor=>{
+        if(mode==='preview'){orbitDistance=THREE.MathUtils.clamp(orbitDistance*factor,2.5,12);orbitPreview();}
+        else {const input=$('size');input.value=THREE.MathUtils.clamp(Number(input.value)/factor,Number(input.min),Number(input.max));input.dispatchEvent(new Event('input'));}
+      },
+    });
     renderer.setAnimationLoop((time,frame)=>{
       uniforms.time.value=reducedMotion?0:time*.001;
       updatePortal(performance.now());
@@ -238,7 +256,7 @@ async function init() {
         $('drop').disabled=!reticle.visible;
         if(reticle.visible){const p=new THREE.Vector3().setFromMatrixPosition(reticle.matrix);portal.position.copy(p);const c=new THREE.Vector3();renderer.xr.getCamera().getWorldPosition(c);portal.rotation.set(0,Math.atan2(c.x-p.x,c.z-p.z),0);portal.visible=armed;}
         else portal.visible=false;
-        arStatus(reticle.visible?'已找到平面 · 可以放置':'慢慢移動手機，掃描水平地面');
+        arStatus(reticle.visible?'水平表面可放置 · 未檢查周圍障礙物':'此位置無有效水平表面 · 請掃描地面');
       }
       renderer.render(scene,camera);
       if((recorder?.state==='recording'||captureFrameRequested) && mode!=='xr')composeCapture();
@@ -291,7 +309,7 @@ function updatePortal(now) {
   const m=surface.matrixWorld.elements;uniforms.ratio.value=Math.sqrt(m[1]*m[1]+m[5]*m[5]+m[9]*m[9])/Math.max(.00001,Math.sqrt(m[0]*m[0]+m[4]*m[4]+m[8]*m[8]));
   const t=reducedMotion?0:now*.001;
   updateEmitters(emitters,reducedMotion?1.2:Math.max(0,(now-(droppedAt??now))/1000),renderer.domElement.height,0,animation.particleOpacity);
-  guideArrows.forEach((arrow,i)=>{const s=((i/35+t*.2)%1);arrow.position.set(.35*s,Math.sin(s*Math.PI)*.65+.03,2.4*s);arrow.rotation.x=-Math.atan2(Math.cos(s*Math.PI)*Math.PI*.65,2.4);arrow.scale.setScalar(.35+s);});
+  guideArrows.forEach((arrow,i)=>{const s=((i/35-t*.2)%1+1)%1;arrow.position.set(.35*s,Math.sin(s*Math.PI)*.65+.03,2.4*s);arrow.rotation.x=-Math.atan2(Math.cos(s*Math.PI)*Math.PI*.65,2.4);arrow.scale.setScalar(.35+s);});
 }
 function composeCapture() {
   const w=recorder?.state==='recording'?recordWidth:Math.round(mode==='preview'?$('viewport').clientWidth:innerWidth);
@@ -333,4 +351,5 @@ function showMedia(blob,type) {
   $('media-note').textContent=video?'錄影不含聲音。下載後可在裝置上開啟，或分享並儲存到相簿。':'照片包含相機畫面與傳送門，不包含操作按鈕。';
   $('media-share').hidden=!(navigator.canShare?.({files:[savedMedia]}));if(!$('media-dialog').open)$('media-dialog').showModal();
 }
+
 
