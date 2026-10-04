@@ -1,5 +1,6 @@
 import * as THREE from './vendor/three.module.js';
 import {createEmitters,updateEmitters} from './effects.js';
+import {vertexShader,fragmentShader} from './portal-shader.js';
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
 const arStatus = message => { $('ar-status').textContent = message; };
@@ -7,7 +8,7 @@ let renderer, scene, camera, portal, surface, worldTexture, stream, xrSession, h
 let arSource, arContext, markerRoot, markerControls, reticle, grid;
 let mode = 'preview', placed = false, busy = false, xrSupported = false, ready = false;
 let markerReady = false, generation = 0, resizeObserver;
-let droppedAt=null,lastCountdown=30,burst=0,emitters=[],placementGuide,guideArrows=[],armed=true;
+let droppedAt=null,lastCountdown=30,burst=0,emitters=[],placementGuide,guideArrows=[],armed=true,expandingRing,ringUniforms;
 let recorder=null,recordingStream=null,recordChunks=[],recordStarted=0,recordWidth=0,recordHeight=0;
 let savedMedia=null,mediaUrl=null,captureFrameRequested=false;
 const captureCanvas=document.createElement('canvas');const captureContext=captureCanvas.getContext('2d');
@@ -15,19 +16,8 @@ const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const portalFont='"PortalText", "PortalCJK", sans-serif';
 const startButtons = ['start-marker','start-xr','start-camera'];
 const noise = new THREE.TextureLoader().load('./assets/portal-noise.png');
-noise.wrapS = noise.wrapT = THREE.RepeatWrapping;
-const uniforms = { time: { value: 0 }, picture: { value: null }, noiseMap: { value: noise }, hasPicture: { value: 0 }, aspect: { value: 1 }, flash:{value:0}, tint: { value: new THREE.Color('#2177ff') } };
-const vertexShader = `varying vec2 p; void main(){p=position.xy;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`;
-const fragmentShader = `precision highp float;
-uniform float time,hasPicture,aspect,flash;uniform sampler2D picture,noiseMap;uniform vec3 tint;varying vec2 p;
-void main(){float r=length(p);float a=atan(p.y,p.x);vec2 q=p*.5+.5;
-float n=texture2D(noiseMap,vec2(a/6.283+time*.018,r*.8-time*.065)).r;
-float ribbon=pow(max(0.,sin(a*12.+time*1.7+n*7.)),3.);
-float edge=smoothstep(.979,.987,r);float glow=pow(max(0.,1.-abs(r-.982)/.018),2.);
-vec2 uv=q;float target=.65;if(aspect>target)uv.x=(uv.x-.5)*(target/aspect)+.5;else uv.y=(uv.y-.5)*(aspect/target)+.5;
-vec3 image=texture2D(picture,uv).rgb;vec3 base=mix(vec3(.025,.065,.18),image,hasPicture*.85);
-base+=tint*(.02+.035*n)+tint*pow(max(0.,(r-.77)/.23),2.)*(.15+.25*ribbon)*(1.-edge);base=mix(base,tint*(.85+.15*ribbon),edge);base+=tint*glow*.2+vec3(.45,.7,1.)*flash;
-float alpha=(1.-smoothstep(.994,1.,r))*mix(.78,1.,edge);gl_FragColor=vec4(base,alpha);}`;
+noise.wrapS = noise.wrapT = THREE.MirroredRepeatWrapping;noise.generateMipmaps=false;noise.minFilter=THREE.LinearFilter;
+const uniforms = { time: { value: 0 }, picture: { value: null }, noiseMap: { value: noise },globals:{value:[]},ratio:{value:1.432},localCamera:{value:new THREE.Vector3()},flash:{value:0} };
 
 function makeLabel() {
   const c=document.createElement('canvas');c.width=1024;c.height=600;
@@ -188,8 +178,8 @@ async function chooseImage(file) {
     const canvas=document.createElement('canvas');const scale=Math.min(1,2048/Math.max(img.width,img.height));
     canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
     canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-    worldTexture?.dispose();worldTexture=texture;uniforms.picture.value=texture;uniforms.hasPicture.value=1;uniforms.aspect.value=img.width/img.height;
+    const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.NoColorSpace;
+    worldTexture?.dispose();worldTexture=texture;uniforms.picture.value=texture;uniforms.globals.value[2].set(1/canvas.width,1/canvas.height,canvas.width,canvas.height);uniforms.globals.value[3].w=1;
     $('thumbnail').src=canvas.toDataURL('image/jpeg',.75);$('filename').textContent=file.name;
     status('圖片已更新。可以開啟相機放置傳送門。');
   }catch(e){status(e.message);}finally{URL.revokeObjectURL(url);$('image').value='';}
@@ -199,12 +189,15 @@ async function init() {
     renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));
     renderer.xr.enabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;$('viewport').appendChild(renderer.domElement);
     scene=new THREE.Scene();camera=new THREE.PerspectiveCamera(45,1,.01,100);
-    const [mesh,outline,cursor,config]=await Promise.all(['portal-plane.json','placement-outline.json','placement-cursor.json','effects-config.json'].map(async name=>{const r=await fetch(`./assets/${name}`);if(!r.ok)throw new Error(`${name} 載入失敗`);return r.json();}));
+    const [mesh,outline,cursor,config,registers,fxRegisters]=await Promise.all(['portal-plane.json','placement-outline.json','placement-cursor.json','effects-config.json','shader-parameters.json','ring-fx-parameters.json'].map(async name=>{const r=await fetch(`./assets/${name}`);if(!r.ok)throw new Error(`${name} 載入失敗`);return r.json();}));
+    uniforms.globals.value=registers.map(values=>new THREE.Vector4(...values));
     const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(mesh.positions,3));geometry.setAttribute('uv',new THREE.Float32BufferAttribute(mesh.uvs,2));
     worldTexture=makeLabel('選擇世界圖片');uniforms.picture.value=worldTexture;
     portal=new THREE.Group();const shape=new THREE.Group();shape.name='shape';portal.add(shape);
     surface=new THREE.Mesh(geometry,new THREE.ShaderMaterial({uniforms,vertexShader,fragmentShader,transparent:true,side:THREE.DoubleSide,depthWrite:false}));
-    surface.position.y=1.1;surface.scale.set(.715,1.1,1);shape.add(surface);
+    surface.position.y=1.1;surface.scale.set(1.1,1.1*.518576979637146/.742755115032196,1);surface.rotation.z=-Math.PI/2;shape.add(surface);
+    ringUniforms={time:{value:0},picture:uniforms.picture,noiseMap:uniforms.noiseMap,globals:{value:fxRegisters.map(v=>new THREE.Vector4(...v))},ratio:{value:1},localCamera:{value:new THREE.Vector3(0,0,3)},flash:{value:0}};
+    expandingRing=new THREE.Mesh(geometry,new THREE.ShaderMaterial({uniforms:ringUniforms,vertexShader,fragmentShader,transparent:true,side:THREE.DoubleSide,depthWrite:false}));expandingRing.rotation.x=-Math.PI/2;expandingRing.position.y=1.1;shape.add(expandingRing);
     const label=new THREE.Mesh(new THREE.PlaneGeometry(1.8,1.05),new THREE.MeshBasicMaterial({map:makeLabel(),transparent:true,side:THREE.DoubleSide,depthWrite:false}));
     label.name='label';label.position.set(0,2.9,.025);shape.add(label);
     for(const [index,name,color] of [[0,'windows',0x00aaff],[1,'android',0x20bf6a],[2,'apple',0xbac7d8]]){
@@ -214,7 +207,7 @@ async function init() {
     placementGuide=new THREE.Group();placementGuide.name='placement';portal.add(placementGuide);
     const geoFrom=data=>{const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(data.positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(data.uvs,2));g.computeBoundingBox();return g;};
     const outlineGeo=geoFrom(outline);const dashed=new THREE.Mesh(outlineGeo,new THREE.MeshBasicMaterial({color:0x00aaf1,side:THREE.DoubleSide}));
-    const bounds=outlineGeo.boundingBox;dashed.scale.set(1.43/(bounds.max.x-bounds.min.x),2.2/(bounds.max.y-bounds.min.y),1);dashed.position.y=-bounds.min.y*dashed.scale.y;placementGuide.add(dashed);
+    const bounds=outlineGeo.boundingBox;dashed.scale.setScalar(2.2/(bounds.max.y-bounds.min.y));dashed.position.y=-bounds.min.y*dashed.scale.y;placementGuide.add(dashed);
     const iconTex=new THREE.TextureLoader().load('./assets/placement-icon.png');iconTex.colorSpace=THREE.SRGBColorSpace;
     const icon=new THREE.Mesh(new THREE.PlaneGeometry(.75,.75),new THREE.MeshBasicMaterial({map:iconTex,transparent:true,side:THREE.DoubleSide,depthWrite:false}));icon.position.set(0,1.1,.01);icon.scale.x=-1;placementGuide.add(icon);
     const floor=new THREE.Mesh(new THREE.RingGeometry(1.25,1.28,96).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x00aaff,transparent:true,opacity:.9,side:THREE.DoubleSide}));floor.position.y=.002;placementGuide.add(floor);
@@ -287,7 +280,13 @@ function updatePortal(now) {
   const base=Number($('size').value)/2.2;const shape=portal.getObjectByName('shape');shape.scale.set(base*Math.max(.001,openness),base*(.8+.2*openness),base);
   shape.visible=placed;placementGuide.visible=!placed&&armed;placementGuide.scale.setScalar(base);
   ['windows','android','apple'].forEach(name=>shape.getObjectByName(`platform-${name}`).visible=$(`platform-${name}`).checked);
-  uniforms.flash.value=reducedMotion?0:burst*.45;
+  uniforms.flash.value=0;
+  expandingRing.visible=!reducedMotion&&burst>.001;
+  expandingRing.scale.setScalar(1+3*(1-burst));ringUniforms.time.value=uniforms.time.value;
+  ringUniforms.globals.value[7].w=burst;
+  surface.updateWorldMatrix(true,false);
+  const eye=new THREE.Vector3();(mode==='xr'?renderer.xr.getCamera():camera).getWorldPosition(eye);uniforms.localCamera.value.copy(surface.worldToLocal(eye));
+  const m=surface.matrixWorld.elements;uniforms.ratio.value=Math.sqrt(m[1]*m[1]+m[5]*m[5]+m[9]*m[9])/Math.max(.00001,Math.sqrt(m[0]*m[0]+m[4]*m[4]+m[8]*m[8]));
   const t=reducedMotion?0:now*.001;
   updateEmitters(emitters,reducedMotion?1.2:Math.max(0,(now-(droppedAt??now))/1000),renderer.domElement.height,burst);
   guideArrows.forEach((arrow,i)=>{const s=((i/35+t*.2)%1);arrow.position.set(.35*s,Math.sin(s*Math.PI)*.65+.03,2.4*s);arrow.rotation.x=-Math.atan2(Math.cos(s*Math.PI)*Math.PI*.65,2.4);arrow.scale.setScalar(.35+s);});

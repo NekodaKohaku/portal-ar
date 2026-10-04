@@ -53,7 +53,7 @@ gh auth login
 gh repo create portal-ar --public --source . --remote origin --push
 ```
 
-本機已建立 `main` 分支與網站提交。GitHub 網頁已建立 `nekodakohaku-dev/portal-ar` 空 repository，但本機 Git 儲存的帳號是 `NekodaKohaku`，向該 repository 推送回覆 403，因此網站尚未上線。使用者將切換 GitHub 帳號後再部署；不要再次執行 `git init`。切換目的地後需要更新 `origin` URL。公開部署前請確認你有權發布所使用的 VRChat 素材。
+本機已建立 `main` 分支與網站提交；GitHub 目的地為 `NekodaKohaku/portal-ar`。本機已有 Git repository 時不要再次執行 `git init`。公開部署前請確認你有權發布所使用的 VRChat 素材。
 
 ## 素材來源與轉換
 
@@ -67,7 +67,9 @@ gh repo create portal-ar --public --source . --remote origin --push
 - 平台圖示由 sharedassets0 的 Texture 681、421、592 匯出。標籤字型由 Font `NotoSans-Regular` 1409 與 `NotoSansCJK-JP-Regular` 1407 匯出並轉為 WOFF2；Noto 字型為 SIL OFL。
 - 完整匯出清單在相鄰的 `extracted/inventory.json`，共有 105 個名稱含 portal 的物件，另有依賴的圓形網格、噪聲貼圖、shader 參考輸出。
 - `tools/extract_portal.py`、`export_dependencies.py`、`convert_mesh.py` 可重現素材匯出與轉換。
-- Unity shader 匯出只有屬性／編譯資訊，不能直接執行於 WebGL；網頁中的 Shader、弧線導引、地面外圓環與開關過渡為重建。**尚未達到遊戲內 100% 一致**：需進一步還原編譯 Shader、開關動畫時序、全部粒子模組和動態比較。沒有搬移所有傳送門皮膚。
+- 原始 Shader 1237 的 LZ4 區塊已解壓，並以 Windows 官方 D3DDisassemble 反組譯出 16 組不同的 DXBC 程式。UnityPy 的一般匯出未處理此版本的 `m_PlayerSubPrograms`，因此一開始輸出只有屬性。`tools/disassemble_shader.py`、`inspect_shader.py` 保留可重現的解析路徑；原始 disassembly 和參數綁定保存在相鄰的 `extracted`。
+- `portal-shader.js` 依非立體 `ps_4_0` 的運算轉寫，包括邊界距離、平滑邊框、圖片混合／視差、背景透明度、atan 多項式、噪聲光暈；`shader-parameters.json` 和 `ring-fx-parameters.json` 由兩個原始材質常數直接產生。噪聲採原本的 mirrored repeat 與 bilinear filtering。擴散環沿用原始 Circle 網格、Ring FX 材質參數和水平擺放。
+- **尚未達到遊戲內 100% 一致**：開關過渡時間與縮放、弧線導引、地面外環仍有重建；粒子的隨機序列／拉伸 billboard、渲染色彩空間及全部變體尚未逐幀對照。沒有搬移所有傳送門皮膚。原始 DXBC 本身無法直接在 WebGL 執行。
 
 ## 第三方程式
 
