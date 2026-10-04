@@ -8,7 +8,7 @@
 <label for="world">世界名稱</label><input id="world" type="text" maxlength="48" value="My world" placeholder="輸入世界名稱">
 <label for="creator">創建者名稱</label><input id="creator" type="text" maxlength="48" value="Your name" placeholder="輸入創建者名稱">
 <div class="form-row"><div><label for="instance">伺服器編號</label><input id="instance" type="text" maxlength="12" value="15247"></div><div><label for="access">類型</label><select id="access"><option value="Invite">Invite</option><option value="Invite+">Invite+</option><option value="Friends">Friends</option><option value="Friends+">Friends+</option><option value="Public">Public</option></select></div></div>
-<div class="platform-options"><label><input id="random-instance" type="checkbox">每次 Drop 使用隨機 5 位數</label></div>
+<div class="platform-options"><label><input id="random-instance" type="checkbox" checked>隨機伺服器編號</label></div>
 <label for="region">伺服器位置</label><select id="region"><option value="jp">日本 · JP</option><option value="us">美國西部 · US West</option><option value="use">美國東部 · US East</option><option value="eu">歐洲 · EU</option></select>
 <div class="form-row"><div><label for="occupancy">目前人數</label><input id="occupancy" type="number" min="0" max="999" value="0"></div><div><label for="capacity">人數上限</label><input id="capacity" type="number" min="1" max="999" value="32"></div></div>
 <fieldset class="platform-options"><legend>世界支援的平台</legend><label><input id="platform-windows" type="checkbox" checked> Windows</label><label><input id="platform-android" type="checkbox" checked> Android</label><label><input id="platform-apple" type="checkbox"> iOS</label></fieldset>
@@ -19,6 +19,6 @@
 <p class="help">地面 AR 只接受水平表面，不會偵測牆壁穿透或周圍障礙物。</p><p id="support" class="help">正在檢查裝置支援…</p><p id="status" role="status" aria-live="polite">正在載入傳送門…</p><p class="credit">VRChat 素材研究原型 · 非官方作品</p></aside></section></main>
 <div id="ar-hud" hidden><div id="placement-touch" aria-label="Placement surface"></div><div class="hud-top"><span id="ar-status" role="status">正在開啟相機…</span><button id="exit" aria-label="結束相機">結束</button></div><div class="hud-bottom"><p id="ar-help">把相機對準辨識圖</p><div class="capture-actions"><button id="photo" class="secondary">拍照</button><button id="record" class="secondary">錄影</button></div><div class="hud-actions"><button id="reset" class="secondary">重新放置</button><button id="drop" class="primary" disabled>Drop portal</button></div></div></div>
 <dialog id="media-dialog"><div class="media-header"><strong id="media-title">你的傳送門</strong><button id="media-close" aria-label="關閉媒體預覽">關閉</button></div><img id="media-image" alt="拍攝的傳送門" hidden><video id="media-video" controls playsinline hidden></video><p id="media-note">可下載檔案，或分享並儲存到相簿。</p><div class="media-actions"><a id="media-download" class="download">下載</a><button id="media-share" class="secondary">分享／儲存到相簿</button></div></dialog>
-<script type="module" src="app.js?v=20261004-android"></script></body></html>
+<script type="module" src="app.js?v=20261004-random"></script></body></html>
 
 

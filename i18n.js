@@ -9,7 +9,7 @@ const messages={
  '此瀏覽器未提供地面 AR。請使用支援 ARCore 的 Android 手機，或相機預覽。':['Surface AR is unavailable. Use an ARCore-compatible Android phone, or camera preview.','平面ARを利用できません。ARCore対応のAndroid端末、またはカメラプレビューをご利用ください。'],
  '清除已保存圖片':['Clear saved image','保存した画像を削除'],
  '只保存最後一張圖片，新圖片會覆蓋舊圖片。':['Only the latest image is saved; a new image replaces the previous one.','最後の画像のみ保存され、新しい画像で上書きされます。'],
- '每次 Drop 使用隨機 5 位數':['Random 5-digit number on each Drop','Dropごとにランダムな5桁の番号'],
+ '隨機伺服器編號':['Random server number','ランダムなサーバー番号'],
  '伺服器位置':['Server location','サーバー所在地'],
  '日本':['Japan','日本'],'美國':['United States','アメリカ'],'台灣':['Taiwan','台湾'],'德國':['Germany','ドイツ'],'法國':['France','フランス'],'義大利':['Italy','イタリア'],'荷蘭':['Netherlands','オランダ'],
  '已保存圖片':['Saved image','保存済み画像'],

@@ -2,7 +2,7 @@ import * as THREE from './vendor/three.module.js';
 import {createEmitters,updateEmitters} from './effects.js?v=20261004-touch';
 import {vertexShader,fragmentShader} from './portal-shader.js';
 import {portalFrame} from './lifecycle.js';
-import {initLanguages,setText,t} from './i18n.js?v=20261004-android';
+import {initLanguages,setText,t} from './i18n.js?v=20261004-random';
 import {installGestures} from './gestures.js';
 import {installPlacementInput} from './placement-input.js';
 const $ = id => document.getElementById(id);
