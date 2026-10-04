@@ -1,4 +1,12 @@
 const messages={
+ '清除已保存圖片':['Clear saved image','保存した画像を削除'],
+ '只保存最後一張圖片，新圖片會覆蓋舊圖片。':['Only the latest image is saved; a new image replaces the previous one.','最後の画像のみ保存され、新しい画像で上書きされます。'],
+ '每次 Drop 使用隨機 5 位數':['Random 5-digit number on each Drop','Dropごとにランダムな5桁の番号'],
+ '伺服器位置':['Server location','サーバー所在地'],
+ '日本':['Japan','日本'],'美國':['United States','アメリカ'],'台灣':['Taiwan','台湾'],'德國':['Germany','ドイツ'],'法國':['France','フランス'],'義大利':['Italy','イタリア'],'荷蘭':['Netherlands','オランダ'],
+ '已保存圖片':['Saved image','保存済み画像'],
+ '已清除保存的圖片，下次開啟不會恢復。':['Saved image cleared. It will not be restored next time.','保存画像を削除しました。次回は復元されません。'],
+ '無法清除保存的圖片，請重試。':['Could not clear the saved image. Please try again.','保存画像を削除できませんでした。もう一度お試しください。'],
  '此裝置無法記憶圖片，重新開啟時請再次選擇。':['This device could not remember the image. Please select it again next time.','この端末では画像を保存できません。次回もう一度選択してください。'],
  '用手指挪動預定位置，確認定位圈後按底部 Drop portal。地面 AR 拍照錄影請使用手機系統功能。':['Drag to choose a location, then press Drop portal below when the ring appears. Use system screenshots or recording for surface AR.','指で設置位置を動かし、リングを確認して下のDrop portalを押してください。平面ARの撮影は端末の機能をご利用ください。'],
  'Portal / 傳送門實驗室':['Portal / Portal Lab','Portal / ポータルラボ'],

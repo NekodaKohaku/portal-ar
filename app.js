@@ -2,12 +2,12 @@ import * as THREE from './vendor/three.module.js';
 import {createEmitters,updateEmitters} from './effects.js?v=20261004-touch';
 import {vertexShader,fragmentShader} from './portal-shader.js';
 import {portalFrame} from './lifecycle.js';
-import {initLanguages,setText,t} from './i18n.js?v=20261004-memory';
+import {initLanguages,setText,t} from './i18n.js?v=20261004-options';
 import {installGestures} from './gestures.js';
 import {installPlacementInput} from './placement-input.js';
 const $ = id => document.getElementById(id);
 initLanguages();
-const savedFields=['world','creator','instance','access','occupancy','capacity','size','platform-windows','platform-android','platform-apple'];
+const savedFields=['world','creator','instance','random-instance','region','access','occupancy','capacity','size','platform-windows','platform-android','platform-apple'];
 try{
   const saved=JSON.parse(localStorage.getItem('portal-settings')||'{}');
   savedFields.forEach(id=>{const input=$(id);if(!(id in saved))return;if(input.type==='checkbox')input.checked=saved[id]===true;else if(typeof saved[id]==='string'){if(input.tagName==='SELECT'&&![...input.options].some(o=>o.value===saved[id]))return;input.value=saved[id];}});
@@ -15,6 +15,9 @@ try{
 function saveSettings(){try{localStorage.setItem('portal-settings',JSON.stringify(Object.fromEntries(savedFields.map(id=>[id,$(id).type==='checkbox'?$(id).checked:$(id).value]))));}catch{}}
 savedFields.forEach(id=>$(id).addEventListener('input',saveSettings));
 setText($('size-value'),`${Number($('size').value).toFixed(1)} m`);
+$('instance').disabled=$('random-instance').checked;
+function randomInstance(){const value=new Uint32Array(1);do{crypto.getRandomValues(value);}while(value[0]>=4294890000);$('instance').value=String(10000+value[0]%90000);saveSettings();refreshLabel();}
+$('random-instance').addEventListener('change',()=>{$('instance').disabled=$('random-instance').checked;if($('random-instance').checked)randomInstance();});
 function imageStore(mode,action){return new Promise((resolve,reject)=>{
   const request=indexedDB.open('portal-preferences',1);
   request.onupgradeneeded=()=>request.result.createObjectStore('images');
@@ -68,10 +71,20 @@ function makeLabel() {
     let font=i===4?88:68;ctx.font=`${i===4?'700':'400'} ${font}px ${portalFont}`;
     while(ctx.measureText(text).width>880 && font>24){ctx.font=`${i===4?'700':'400'} ${--font}px ${portalFont}`;}
     const y=64+i*113;ctx.strokeStyle='#123260b0';ctx.lineWidth=6;ctx.strokeText(text,512,y);ctx.fillStyle='#f4f8ff';ctx.fillText(text,512,y);
-    if(i===2){const x=512-ctx.measureText(text).width/2-36;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(x,y,26,0,Math.PI*2);ctx.fill();ctx.fillStyle='#bd1846';ctx.beginPath();ctx.arc(x,y,16,0,Math.PI*2);ctx.fill();}
+    if(i===2)drawRegion(ctx,512-ctx.measureText(text).width/2-36,y,$('region').value);
   });
   const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
   return t;
+}
+function drawRegion(ctx,x,y,region){
+  ctx.save();ctx.translate(x,y);ctx.beginPath();ctx.arc(0,0,26,0,Math.PI*2);ctx.clip();
+  const rect=(color,a,b,w,h)=>{ctx.fillStyle=color;ctx.fillRect(a,b,w,h);};
+  rect('#fff',-26,-26,52,52);
+  if(region==='jp'){ctx.fillStyle='#bd1846';ctx.beginPath();ctx.arc(0,0,16,0,Math.PI*2);ctx.fill();}
+  else if(region==='us'){for(let i=0;i<13;i++)if(i%2===0)rect('#b22234',-26,-26+i*4,52,4);rect('#3c3b6e',-26,-26,28,28);for(let r=0;r<5;r++)for(let c=0;c<5;c++)rect('#fff',-23+c*5,-23+r*5,2,2);}
+  else if(region==='tw'){rect('#fe0000',-26,-26,52,52);rect('#000095',-26,-26,30,30);ctx.save();ctx.translate(-11,-11);ctx.fillStyle='#fff';ctx.beginPath();for(let i=0;i<24;i++){const a=i*Math.PI/12-Math.PI/2,r=i%2?6:11;ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);}ctx.closePath();ctx.fill();ctx.restore();}
+  else {const colors={de:['#000','#d00','#ffce00'],fr:['#002395','#fff','#ed2939'],it:['#009246','#fff','#ce2b37'],nl:['#ae1c28','#fff','#21468b']}[region]||['#fff','#fff','#fff'];colors.forEach((color,i)=>['fr','it'].includes(region)?rect(color,-26+i*52/3,-26,52/3,52):rect(color,-26,-26+i*52/3,52,52/3));}
+  ctx.restore();
 }
 function refreshLabel() {
   if (!portal) return;
@@ -184,6 +197,7 @@ function drop() {
     portal.rotation.set(0,Math.atan2(c.x-p.x,c.z-p.z),0);
     reticle.visible=false;
   }else if(mode==='marker' && !markerReady)return;
+  if($('random-instance').checked)randomInstance();
   placed=true;armed=false;droppedAt=performance.now();lastCountdown=30;refreshLabel();portal.visible=true;$('drop').disabled=true;$('reset').disabled=false;$('preview-drop').disabled=true;
   if(mode==='preview'){orbitPreview();status('傳送門已放置，30 秒後自動關閉。');}
   arStatus(mode==='marker'?'已放置 · 保持辨識圖在畫面中':mode==='xr'?'已放置在地面':'已放置 · 相機預覽');
@@ -220,7 +234,7 @@ async function chooseImage(file,remember=true) {
     const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.NoColorSpace;
     worldTexture?.dispose();worldTexture=texture;uniforms.picture.value=texture;uniforms.globals.value[2].set(1/canvas.width,1/canvas.height,canvas.width,canvas.height);uniforms.globals.value[3].w=1;
     $('thumbnail').src=canvas.toDataURL('image/jpeg',.75);setText($('filename'),file.name);
-    if(remember){const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.9));if(blob)try{await imageStore('readwrite',store=>store.put({blob,name:file.name},'world'));}catch{status(t('圖片已更新。可以開啟相機放置傳送門。')+' '+t('此裝置無法記憶圖片，重新開啟時請再次選擇。'));return;}}
+    if(remember){const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',.9));if(blob)try{await imageStore('readwrite',store=>store.put({blob,name:file.name},'world'));setText($('image-storage'),`${t('已保存圖片')} · ${(blob.size/1024/1024).toFixed(2)} MB`);}catch{status(t('圖片已更新。可以開啟相機放置傳送門。')+' '+t('此裝置無法記憶圖片，重新開啟時請再次選擇。'));return;}}
     status('圖片已更新。可以開啟相機放置傳送門。');
   }catch(e){status(e.message);}finally{URL.revokeObjectURL(url);$('image').value='';}
 }
@@ -306,10 +320,12 @@ async function init() {
     if(!navigator.mediaDevices?.getUserMedia || !isSecureContext){$('start-marker').disabled=$('start-camera').disabled=true;setText($('support'),'相機需要 HTTPS 或 localhost，請部署至 GitHub Pages 後開啟。');}
     else setText($('support'),xrSupported?'此裝置可使用地面 AR，也可以使用標記 AR。':'此瀏覽器未提供地面 AR。請使用標記 AR 或相機預覽。');
     status('傳送門已就緒，請選擇世界圖片。');
-    try{const saved=await imageStore('readonly',store=>store.get('world'));if(saved?.blob)await chooseImage(new File([saved.blob],saved.name||'world.jpg',{type:saved.blob.type}),false);}catch{}
+    try{const saved=await imageStore('readonly',store=>store.get('world'));if(saved?.blob){await chooseImage(new File([saved.blob],saved.name||'world.jpg',{type:saved.blob.type}),false);setText($('image-storage'),`${t('已保存圖片')} · ${(saved.blob.size/1024/1024).toFixed(2)} MB`);}}catch{}
   }catch(e){status(`載入失敗：${e.message}。請確認瀏覽器支援 WebGL，並由網站網址開啟。`);}
 }
 $('image').addEventListener('change',e=>chooseImage(e.target.files[0]));['world','creator','instance','access','occupancy','capacity'].forEach(id=>$(id).addEventListener('input',()=>{refreshLabel();if(id==='world'||id==='creator')document.fonts.load(`400 68px ${portalFont}`,$('world').value+$('creator').value).then(refreshLabel).catch(()=>{});}));
+$('region').addEventListener('change',refreshLabel);
+$('clear-image').addEventListener('click',async()=>{try{await imageStore('readwrite',store=>store.delete('world'));setText($('image-storage'),'已清除保存的圖片，下次開啟不會恢復。');}catch{status('無法清除保存的圖片，請重試。');}});
 $('size').addEventListener('input',()=>{const height=Number($('size').value);setText($('size-value'),`${height.toFixed(1)} m`);portal?.getObjectByName('shape').scale.setScalar(height/2.2);});
 $('start-camera').addEventListener('click',()=>begin(startCamera));$('start-marker').addEventListener('click',()=>begin(startMarker));$('start-xr').addEventListener('click',()=>begin(startXR));
 $('exit').addEventListener('click',stop);$('drop').addEventListener('click',drop);$('reset').addEventListener('click',resetPlacement);
