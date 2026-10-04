@@ -1,4 +1,5 @@
 const messages={
+ '用手指挪動預定位置，確認定位圈後按底部 Drop portal。地面 AR 拍照錄影請使用手機系統功能。':['Drag to choose a location, then press Drop portal below when the ring appears. Use system screenshots or recording for surface AR.','指で設置位置を動かし、リングを確認して下のDrop portalを押してください。平面ARの撮影は端末の機能をご利用ください。'],
  'Portal / 傳送門實驗室':['Portal / Portal Lab','Portal / ポータルラボ'],
  '選擇世界圖片，在現實中放置你的傳送門。支援 iPhone 標記 AR 與 Android WebXR。':['Choose a world image and place your portal in reality. Supports iPhone marker AR and Android WebXR.','ワールド画像を選んで現実にポータルを設置。iPhoneのマーカーARとAndroidのWebXRに対応。'],
  '傳送門實驗室':['Portal Lab','ポータルラボ'],

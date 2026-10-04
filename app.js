@@ -4,6 +4,7 @@ import {vertexShader,fragmentShader} from './portal-shader.js';
 import {portalFrame} from './lifecycle.js';
 import {initLanguages,setText,t} from './i18n.js?v=20261004-language';
 import {installGestures} from './gestures.js';
+import {installPlacementInput} from './placement-input.js';
 const $ = id => document.getElementById(id);
 initLanguages();
 const status = message => { setText($('status'),message); };
@@ -12,6 +13,20 @@ let renderer, scene, camera, portal, surface, worldTexture, stream, xrSession, h
 let arSource, arContext, markerRoot, markerControls, reticle, grid;
 let mode = 'preview', placed = false, busy = false, xrSupported = false, ready = false;
 let markerReady = false, generation = 0, resizeObserver;
+let viewerSpace=null,targetPoint=new THREE.Vector2(),hitRequestPending=false,targetDirty=false;
+async function updateHitRay(){
+  if(!xrSession||!viewerSpace||hitRequestPending||placed)return;
+  const session=xrSession;hitRequestPending=true;targetDirty=false;
+  try{
+    const viewCamera=renderer.xr.getCamera().cameras[0];
+    if(!viewCamera){targetDirty=true;return;}
+    const direction=new THREE.Vector3(targetPoint.x,targetPoint.y,.5).applyMatrix4(viewCamera.projectionMatrixInverse).normalize();
+    const next=await session.requestHitTestSource({space:viewerSpace,offsetRay:new XRRay({x:0,y:0,z:0,w:1},{x:direction.x,y:direction.y,z:direction.z,w:0})});
+    if(xrSession!==session){next.cancel();return;}
+    hitSource?.cancel();hitSource=next;
+  }catch(error){arStatus(friendlyError(error));}
+  finally{hitRequestPending=false;}
+}
 let orbitYaw=0,orbitPitch=0,orbitDistance=5.8;
 function orbitPreview(){
   const height=placed?1.75:1.5;
@@ -64,6 +79,7 @@ function resize() {
 }
 function setMode(next) {
   mode=next;document.body.classList.toggle('ar-active',next!=='preview');
+  document.body.classList.toggle('xr-placement',next==='xr');
   $('ar-hud').hidden=next==='preview';setText($('mode'),next==='preview'?'3D 預覽':'相機');
   grid.visible=next==='preview';scene.background=null;renderer.setClearColor(0x000000,0);
   placed=false;armed=true;droppedAt=null;lastCountdown=30;refreshLabel();markerReady=false;$('drop').disabled=next!=='camera';
@@ -136,14 +152,13 @@ async function startMarker() {
 }
 async function startXR() {
   if(!xrSupported)throw new DOMException('WebXR AR unavailable','NotSupportedError');
-  xrSession=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test'],optionalFeatures:['dom-overlay'],domOverlay:{root:$('ar-hud')}});
+  xrSession=await navigator.xr.requestSession('immersive-ar',{requiredFeatures:['hit-test','dom-overlay'],domOverlay:{root:$('ar-hud')}});
   const session=xrSession;
   session.addEventListener('end',()=>{if(xrSession===session){xrSession=null;stop();}},{once:true});
   setMode('xr');scene.add(portal);portal.scale.setScalar(1);renderer.xr.setReferenceSpaceType('local');
   await renderer.xr.setSession(session);
-  const viewer=await session.requestReferenceSpace('viewer');hitSource=await session.requestHitTestSource({space:viewer});
-  session.addEventListener('select',()=>{if(!session.domOverlayState)drop();});
-  arStatus('慢慢移動手機，掃描地面');setText($('ar-help'),'出現定位圈後按 Drop portal。若沒有按鈕，輕點畫面放置；使用瀏覽器 AR 控制離開。 地面 AR 的拍照錄影請使用手機截圖／螢幕錄影。');
+  viewerSpace=await session.requestReferenceSpace('viewer');targetPoint.set(0,0);targetDirty=false;hitSource=await session.requestHitTestSource({space:viewerSpace});
+  arStatus('慢慢移動手機，掃描地面');setText($('ar-help'),'用手指挪動預定位置，確認定位圈後按底部 Drop portal。地面 AR 拍照錄影請使用手機系統功能。');
 }
 function drop() {
   if(placed)return;
@@ -169,6 +184,7 @@ async function stop() {
   ++generation;
   const session=xrSession;xrSession=null;
   hitSource?.cancel();hitSource=null;
+  viewerSpace=null;targetDirty=false;
   if(session){try{await session.end();}catch{}}
   stream?.getTracks().forEach(t=>t.stop());stream=null;
   const v=$('camera');v.pause();v.srcObject=null;v.hidden=true;v.classList.remove('marker-video');v.removeAttribute('style');
@@ -223,15 +239,17 @@ async function init() {
     const floor=new THREE.Mesh(new THREE.RingGeometry(1.25,1.28,96).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x00aaff,transparent:true,opacity:.9,side:THREE.DoubleSide}));floor.position.y=.002;placementGuide.add(floor);
     const cursorTex=new THREE.TextureLoader().load('./assets/holoport-valid.png');const cursorMesh=new THREE.Mesh(geoFrom(cursor),new THREE.MeshBasicMaterial({map:cursorTex,transparent:true,side:THREE.DoubleSide}));cursorMesh.position.y=.04;placementGuide.add(cursorMesh);
     const arrowGeo=new THREE.BufferGeometry();arrowGeo.setAttribute('position',new THREE.Float32BufferAttribute([-.035,0,.055,.035,0,.055,0,0,-.055],3));
-    for(let i=0;i<35;i++){const arrow=new THREE.Mesh(arrowGeo,new THREE.MeshBasicMaterial({color:0x00aaff,side:THREE.DoubleSide,transparent:true,opacity:.85}));placementGuide.add(arrow);guideArrows.push(arrow);}
+    for(let i=0;i<20;i++){const arrow=new THREE.Mesh(arrowGeo,new THREE.MeshBasicMaterial({color:0x00aaff,side:THREE.DoubleSide,transparent:true,opacity:.85}));placementGuide.add(arrow);guideArrows.push(arrow);}
     grid=new THREE.GridHelper(16,32,0x274e77,0x162a43);grid.position.y=-.015;scene.add(grid);
     reticle=new THREE.Mesh(new THREE.RingGeometry(.13,.16,48).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({color:0x8bd1ff,side:THREE.DoubleSide}));reticle.matrixAutoUpdate=false;reticle.visible=false;scene.add(reticle);
     setMode('preview');resizeObserver=new ResizeObserver(resize);resizeObserver.observe($('stage'));window.addEventListener('resize',resize);
+    installPlacementInput($('placement-touch'),(x,y)=>{if(mode!=='xr'||placed)return;targetPoint.set(x,y);targetDirty=true;$('drop').disabled=true;reticle.visible=false;});
     installGestures($('viewport'),{
       enabled:()=>ready&&mode!=='xr',
       drag:(dx,dy)=>{
         if(mode==='preview'){orbitYaw-=dx*Math.PI*2;orbitPitch=THREE.MathUtils.clamp(orbitPitch+dy*Math.PI,-1.1,1.1);orbitPreview();}
-        else if(mode==='camera'){const height=2*Math.tan(camera.fov*Math.PI/360)*Math.abs(portal.position.z);portal.position.x+=dx*height*camera.aspect;portal.position.y-=dy*height;}
+        else if(mode==='camera'&&!placed){const height=2*Math.tan(camera.fov*Math.PI/360)*Math.abs(portal.position.z);portal.position.x+=dx*height*camera.aspect;portal.position.y-=dy*height;}
+        else if(mode==='marker'&&!placed&&markerReady){portal.position.x+=dx*2;portal.position.z+=dy*2;}
       },
       zoom:factor=>{
         if(mode==='preview'){orbitDistance=THREE.MathUtils.clamp(orbitDistance*factor,2.5,12);orbitPreview();}
@@ -248,13 +266,14 @@ async function init() {
         else arStatus(markerReady?'已放置 · 標記定位中':'辨識圖離開畫面 · 請重新對準');
       }
       if(mode==='xr' && frame && hitSource && !placed){
+        if(targetDirty)updateHitRay();
         const hits=frame.getHitTestResults(hitSource);reticle.visible=false;
         if(hits.length){const pose=hits[0].getPose(renderer.xr.getReferenceSpace());if(pose){
           reticle.matrix.fromArray(pose.transform.matrix);
           // Only place on horizontal surfaces, so the upright portal stands on the floor/table.
           reticle.visible=reticle.matrix.elements[5]>.85;
         }}
-        $('drop').disabled=!reticle.visible;
+        $('drop').disabled=!reticle.visible||hitRequestPending||targetDirty;
         if(reticle.visible){const p=new THREE.Vector3().setFromMatrixPosition(reticle.matrix);portal.position.copy(p);const c=new THREE.Vector3();renderer.xr.getCamera().getWorldPosition(c);portal.rotation.set(0,Math.atan2(c.x-p.x,c.z-p.z),0);portal.visible=armed;}
         else portal.visible=false;
         arStatus(reticle.visible?'水平表面可放置 · 未檢查周圍障礙物':'此位置無有效水平表面 · 請掃描地面');
@@ -312,7 +331,17 @@ function updatePortal(now) {
   const m=surface.matrixWorld.elements;uniforms.ratio.value=Math.sqrt(m[1]*m[1]+m[5]*m[5]+m[9]*m[9])/Math.max(.00001,Math.sqrt(m[0]*m[0]+m[4]*m[4]+m[8]*m[8]));
   const t=reducedMotion?0:now*.001;
   updateEmitters(emitters,reducedMotion?1.2:Math.max(0,(now-(droppedAt??now))/1000),renderer.domElement.height,0,animation.particleOpacity);
-  guideArrows.forEach((arrow,i)=>{const s=((i/35-t*.2)%1+1)%1;arrow.position.set(.35*s,Math.sin(s*Math.PI)*.65+.03,2.4*s);arrow.rotation.x=-Math.atan2(Math.cos(s*Math.PI)*Math.PI*.65,2.4);arrow.scale.setScalar(.35+s);});
+  if(placementGuide.visible){
+    const view=mode==='xr'?(renderer.xr.getCamera().cameras[0]||camera):camera;
+    view.updateWorldMatrix(true,false);placementGuide.updateWorldMatrix(true,false);
+    const eyePosition=new THREE.Vector3().setFromMatrixPosition(view.matrixWorld);
+    const bottomRay=new THREE.Vector3(0,-.82,.5).unproject(view).sub(eyePosition).normalize();
+    const near=THREE.MathUtils.clamp(eyePosition.distanceTo(portal.getWorldPosition(new THREE.Vector3()))*.35,.25,1.5);
+    const start=placementGuide.worldToLocal(eyePosition.addScaledVector(bottomRay,near));
+    const end=new THREE.Vector3(0,.05,0),control=start.clone().add(end).multiplyScalar(.5);control.y+=.65;
+    const curve=new THREE.QuadraticBezierCurve3(start,control,end);
+    guideArrows.forEach((arrow,i)=>{const s=(i/guideArrows.length+t*.20)%1;arrow.position.copy(curve.getPoint(s));arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,-1),curve.getTangent(s));arrow.scale.setScalar(1.1-.75*s);});
+  }
 }
 function composeCapture() {
   const w=recorder?.state==='recording'?recordWidth:Math.round(mode==='preview'?$('viewport').clientWidth:innerWidth);

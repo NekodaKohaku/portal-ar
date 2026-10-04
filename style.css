@@ -5,3 +5,4 @@
 #viewport{touch-action:none;cursor:grab}.ar-active #viewport{cursor:default}#viewport:active{cursor:grabbing}
 .stage-heading{pointer-events:none}
 .header-tools{display:flex;align-items:center;gap:18px}#language{width:auto;margin:0;min-height:40px;max-width:170px;font-size:13px}@media(max-width:760px){.header-tools{gap:6px}#language{max-width:150px;padding:8px}.brand{font-size:18px}}
+#placement-touch{display:none}.ar-active #placement-touch{display:none}body.xr-placement #placement-touch{display:block;position:absolute;inset:0;pointer-events:auto;touch-action:none}#ar-hud .hud-top,#ar-hud .hud-bottom{position:relative;z-index:1}

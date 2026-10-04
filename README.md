@@ -7,6 +7,8 @@ GitHub：https://github.com/NekodaKohaku/portal-ar
 
 上方五行文字沿傳送門的垂直軸轉向觀察者，不隨視角上下傾斜；門面保持放置時的方向。
 
+Drop 前的弧線從使用者畫面下緣連到門底，三角形數量減至 20。地面 AR 以拖曳位置建立 viewer-space offsetRay hit-test，放手後不立即放置，必須按底部 Drop portal；需要 dom-overlay。標記 AR 可在放置前拖曳模型相對標記的位置，普通相機模式可拖曳畫面位置。Drop 後停止拖曳移動。地面 AR 的觸控射線尚待 Android 實機驗證；拍照錄影限制仍依上文說明。
+
 純靜態網頁，可由 GitHub Pages 託管。選圖片、設定五行資訊與大小，按相機模式，再按 **Drop portal**。圖片只在裝置記憶體中處理，不上傳；重新整理會清除設定。
 
 五行依序為世界名稱、創建者、伺服器編號與類型、目前／上限人數、30 秒倒數。這些資訊是手動設定，不向 VRChat 查詢。支援 Windows / Android / iOS 圖示選擇。Drop 前顯示虛線橢圓、中央圖示、地面圓環與指引軌跡；Drop 後顯示世界圖片、粒子和五行資訊，30 秒後播放關閉效果，接著可重新放置。
